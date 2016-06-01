@@ -12,6 +12,8 @@ if [ $system != "CentOS" ];then
 fi
 #mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.backup
 #wget -c http://mirrors.163.com/.help/CentOS6-Base-163.repo -O /etc/yum.repos.d/CentOS-Base.repo
+#yum clean all
+#yum makecache
 
 DATE=`date +"%Y-%m-%d %H:%M:%S"`
 CPU_PROCESSOR=`grep 'processor' /proc/cpuinfo | sort -u | wc -l`
@@ -118,6 +120,11 @@ function configSysctl {
 	else
 		sed -i "s/^net.ipv4.tcp_keepalive_time *=.*/net.ipv4.tcp_keepalive_time = 1200/g" /etc/sysctl.conf
 	fi
+	if [ -z "`grep '^fs.inotify.max_user_watches' /etc/sysctl.conf`" ];then
+		echo "fs.inotify.max_user_watches = 8192000" >> /etc/sysctl.conf
+	else
+		sed -i "s/^fs.inotify.max_user_watches *=.*/fs.inotify.max_user_watches = 8192000/g" /etc/sysctl.conf
+	fi
 	sysctl -p
 	echo -e "\033[31msysctl.conf to complete the optimization!\033[0m"
 }
@@ -141,12 +148,11 @@ function installNginx {
 	if [ ! -e "/usr/local/nginx" ];then
 		yum -y update && yum -y install gcc-c++ zlib-devel openssl--devel pcre-devel
 		groupadd www && /usr/sbin/useradd -g www www		
-		if [ ! -s "nginx-1.7.9.tar.gz" ];then
-			#http://nginx.org/download/nginx-1.7.9.tar.gz
-			wget -c ${DOWNURL}nginx-1.7.9.tar.gz
+		if [ ! -s "nginx-1.9.9.tar.gz" ];then
+			wget -c http://nginx.org/download/nginx-1.9.9.tar.gz
 		fi
-		tar zxvf nginx-1.7.9.tar.gz 
-		cd nginx-1.7.9
+		tar zxvf nginx-1.9.9.tar.gz 
+		cd nginx-1.9.9
 		./configure
 		make && make install
 		if [ $CPU_PROCESSOR -ge 8 ];then
@@ -165,33 +171,35 @@ function installNginx {
 		mkdir -p /usr/local/nginx/conf/vhost		
 		/usr/local/nginx/sbin/nginx &
 		echo -e "\033[31mNginx complete installation!\033[0m"
-		cleanFiles nginx-1.7.9
+		cleanFiles nginx-1.9.9
 	else
 		echo -e "\033[31mNginx is already installed!\033[0m"
 	fi
 }
 
 function updateNginx {
-	if [ ! -s "nginx-1.9.0.tar.gz" ];then
-		#http://nginx.org/download/nginx-1.9.0.tar.gz
-		wget -c ${DOWNURL}nginx-1.9.0.tar.gz
+	if [ ! -s "nginx-1.9.9.tar.gz" ];then
+		wget -c http://nginx.org/download/nginx-1.9.9.tar.gz
 	fi
-	tar zxvf nginx-1.9.0.tar.gz
-	cd nginx-1.9.0
+	tar zxvf nginx-1.9.9.tar.gz
+	cd nginx-1.9.9
 	./configure
 	make
 	mv /usr/local/nginx/sbin/nginx /usr/local/nginx/sbin/nginx.old
 	cp -f objs/nginx /usr/local/nginx/sbin/ 
 	/usr/local/nginx/sbin/nginx -s reload
 	echo -e "\033[31mNginx complete upgrade!\033[0m"
-	cleanFiles nginx-1.9.0
+	cleanFiles nginx-1.9.9
 }
 
 function configVhost {
 	while : 
 	do 
 		read -p "Please input domain(example: www.test.com): " domain
-		if [ -z "`echo $domain | grep -Pix '^([a-z0-9]+[a-z0-9_]*[a-z0-9]+(\.)?)[a-z0-9]+[a-z0-9_]*(\.org\.cn|\.net|\.com|\.com\.cn)$'`" ]; then 
+		if [ "$domain" = "" ]; then
+			domain="www.test.com"
+		fi
+		if [ -z "`echo $domain | grep -Pix '^([a-z0-9]+[a-z0-9_-]*[a-z0-9]+(\.)?)[a-z0-9]+[a-z0-9_-]*(\.org\.cn|\.net|\.com|\.com\.cn)$'`" ]; then 
 			echo -e "\033[31minput error! \033[0m" 
 		else 
 			if [ ! -f "/usr/local/nginx/conf/vhost/${domain}.conf" ]; then
@@ -210,7 +218,7 @@ function configVhost {
 		if [ "$vhostdir" = "" ]; then
 			vhostdir="/data/$domain"
 		fi
-		if [ -z "`echo $vhostdir | grep -Pix '(\/[\w\.]+)+'`" ]; then 
+		if [ -z "`echo $vhostdir | grep -Pix '(\/[\w\.-]+)+'`" ]; then 
 			echo -e "\033[31minput error! \033[0m"			
 		else
 			if [ ! -e "$vhostdir" ]; then
@@ -228,25 +236,24 @@ function configVhost {
 	kill -HUP `cat /usr/local/nginx/logs/nginx.pid`
 }
 
-function installPHP {	
+function installPHP7 {	
 	if [ ! -e "/usr/local/php/bin/php" ];then		
 		yum -y install gcc gcc-c++ libxml2-devel.x86_64 autoconf libjpeg-devel freetype-devel.x86_64 zlib-devel.x86_64 glibc-devel.x86_64 glib2-devel.x86_64 libpng-devel.x86_64 libcurl-devel.x86_64
-		if [ ! -s "php-5.5.24.tar.gz" ];then
-			#http://cn2.php.net/distributions/php-5.5.24.tar.gz
-			wget -c ${DOWNURL}php-5.5.24.tar.gz
+		if [ ! -s "php-7.0.3.tar.gz" ];then
+			wget -c http://cn2.php.net/distributions/php-7.0.3.tar.gz
 		fi
-		tar zxvf php-5.5.24.tar.gz
-		cd php-5.5.24
-		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysql=mysqlnd --with-mysqli --enable-opcache --with-pdo-mysql --with-iconv --with-gd --enable-fpm --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf --without-pdo-sqlite --without-sqlite3
+		tar zxvf php-7.0.3.tar.gz
+		cd php-7.0.3
+		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysqli --enable-opcache --with-pdo-mysql=mysqlnd --with-iconv --with-gd --enable-fpm --enable-mysqlnd --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf --without-pdo-sqlite --without-sqlite3 --enable-pcntl
 		make && make install
 		cp -f php.ini-production /usr/local/php/lib/php.ini
 		sed -i '{
 		s/;date.timezone *=.*/date.timezone = PRC/g
+		s/display_errors *=.*/display_errors = On/g
 		s/upload_max_filesize *=.*/upload_max_filesize = 5M/g
 		s/memory_limit *=.*/memory_limit = 5120M/g
 		s/post_max_size *=.*/post_max_size = 100M/g
 		s/expose_php *=.*/expose_php = Off/g
-		s/; extension_dir = ".\/"/extension_dir = "\/usr\/local\/php\/lib\/php\/extensions\/no-debug-non-zts-20121212\/"/g			
 		}' /usr/local/php/lib/php.ini
 
 		cp -f /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf
@@ -260,38 +267,31 @@ function installPHP {
 		chkconfig php-fpm on
 		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
 		echo -e "\033[31mPHP${php_version} complete installation!\033[0m"
-		cleanFiles php-5.5.24
+		cleanFiles php-7.0.3
 	else
 		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
 		echo -e "\033[31mPHP${php_version} is already installed!\033[0m"
 	fi
 }
 
-function updatePHP {
-	php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
-	if [ $php_version == "5.5.24" ];then
-		echo -e "\033[31mPHP${php_version} is the latest version!\033[0m"
-		return
-	fi
-	if [ -e "/usr/local/php/bin/php" ];then
-		/bin/rm -rf /usr/local/php/
+function installPHP55 {	
+	if [ ! -e "/usr/local/php/bin/php" ];then		
 		yum -y install gcc gcc-c++ libxml2-devel.x86_64 autoconf libjpeg-devel freetype-devel.x86_64 zlib-devel.x86_64 glibc-devel.x86_64 glib2-devel.x86_64 libpng-devel.x86_64 libcurl-devel.x86_64
-		if [ ! -s "php-5.5.24.tar.gz" ];then
-			#http://cn2.php.net/distributions/php-5.5.24.tar.gz
-			wget -c ${DOWNURL}php-5.5.24.tar.gz
+		if [ ! -s "php-5.5.32.tar.gz" ];then
+			wget -c http://cn2.php.net/distributions/php-5.5.32.tar.gz
 		fi
-		tar zxvf php-5.5.24.tar.gz
-		cd php-5.5.24
-		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysql=mysqlnd --with-mysqli --enable-opcache --with-pdo-mysql --with-iconv --with-gd --enable-fpm --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf --without-pdo-sqlite --without-sqlite3
+		tar zxvf php-5.5.32.tar.gz
+		cd php-5.5.32
+		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysql=mysqlnd --with-mysqli --enable-opcache --with-pdo-mysql --with-iconv --with-gd --enable-fpm --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf --without-pdo-sqlite --without-sqlite3 --enable-pcntl
 		make && make install
 		cp -f php.ini-production /usr/local/php/lib/php.ini
 		sed -i '{
 		s/;date.timezone *=.*/date.timezone = PRC/g
+		s/display_errors *=.*/display_errors = On/g
 		s/upload_max_filesize *=.*/upload_max_filesize = 5M/g
 		s/memory_limit *=.*/memory_limit = 5120M/g
 		s/post_max_size *=.*/post_max_size = 100M/g
 		s/expose_php *=.*/expose_php = Off/g
-		s/; extension_dir = ".\/"/extension_dir = "\/usr\/local\/php\/lib\/php\/extensions\/no-debug-non-zts-20121212\/"/g			
 		}' /usr/local/php/lib/php.ini
 
 		cp -f /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf
@@ -305,7 +305,48 @@ function updatePHP {
 		chkconfig php-fpm on
 		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
 		echo -e "\033[31mPHP${php_version} complete installation!\033[0m"
-		cleanFiles php-5.5.24
+		cleanFiles php-5.5.32
+	else
+		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
+		echo -e "\033[31mPHP${php_version} is already installed!\033[0m"
+	fi
+}
+
+function installPHP53 {
+	if [ ! -e "/usr/local/php/bin/php" ];then		
+		yum -y install gcc gcc-c++ libxml2-devel.x86_64 autoconf libjpeg-devel freetype-devel.x86_64 zlib-devel.x86_64 glibc-devel.x86_64 glib2-devel.x86_64 libpng-devel.x86_64 libcurl-devel.x86_64
+		if [ ! -s "php-5.3.28.tar.gz" ];then
+			#http://cn2.php.net/distributions/php-5.5.24.tar.gz
+			wget -c http://cn2.php.net/distributions/php-5.3.28.tar.gz
+		fi
+		tar zxvf php-5.3.28.tar.gz
+		cd php-5.3.28
+		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysql=mysqlnd --with-iconv --with-gd --enable-fpm --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf
+		make && make install
+		cp -f php.ini-production /usr/local/php/lib/php.ini
+		sed -i '{
+		s/;date.timezone *=.*/date.timezone = PRC/g
+		s/upload_max_filesize *=.*/upload_max_filesize = 5M/g
+		s/memory_limit *=.*/memory_limit = 5120M/g
+		s/post_max_size *=.*/post_max_size = 100M/g
+		s/expose_php *=.*/expose_php = Off/g
+		}' /usr/local/php/lib/php.ini
+
+		cp -f /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf
+		/bin/mkdir -p /usr/local/php/log/
+		sed -i '1,$d' /usr/local/php/etc/php-fpm.conf
+		echo -e "[global]\nerror_log = /usr/local/php/log/error.log\nlog_level = warning\n[www]\nuser = www\ngroup = www\nlisten = 127.0.0.1:9000\npm = dynamic\npm.max_children = 2000\npm.start_servers = 10\npm.min_spare_servers = 5\npm.max_spare_servers = 200\npm.max_requests = 12000\npm.process_idle_timeout = 10s\nrequest_terminate_timeout = 300s\nrequest_slowlog_timeout = 10s\nslowlog = /usr/local/php/log/slow.log" > /usr/local/php/etc/php-fpm.conf
+			
+		cp -f sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
+		chmod 700 /etc/init.d/php-fpm 
+		chkconfig --add php-fpm
+		chkconfig php-fpm on
+		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
+		echo -e "\033[31mPHP${php_version} complete installation!\033[0m"
+		cleanFiles php-5.3.28
+	else
+		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
+		echo -e "\033[31mPHP${php_version} is already installed!\033[0m"
 	fi
 }
 
@@ -328,21 +369,21 @@ function installPHPRedis {
 }
 
 function installPHPMongo {
-	if [ ! -s "mongo-1.6.8.tgz" ];then
-		#http://pecl.php.net/get/mongo-1.6.8.tgz
-		wget -c ${DOWNURL}mongo-1.6.8.tgz
+	yum install -y openssl openssl-devel
+	if [ ! -s "mongodb-1.1.5.tgz" ];then
+		wget -c http://pecl.php.net/get/mongodb-1.1.5.tgz
 	fi
-	tar zxvf mongo-1.6.8.tgz
-	cd mongo-1.6.8
+	tar zxvf mongodb-1.1.5.tgz
+	cd mongodb-1.1.5
 	/usr/local/php/bin/phpize
 	./configure -with-php-config=/usr/local/php/bin/php-config
 	make && make install
-	if [ -z "`grep '^extension=mongo.so' /usr/local/php/lib/php.ini`" ];then
-		sed -i '/;extension=php_xsl.dll/a\extension=mongo.so' /usr/local/php/lib/php.ini
+	if [ -z "`grep '^extension=mongodb.so' /usr/local/php/lib/php.ini`" ];then
+		sed -i '/;extension=php_xsl.dll/a\extension=mongodb.so' /usr/local/php/lib/php.ini
 	fi	
 	/sbin/service php-fpm restart
 	echo -e "\033[31mMongo extension complete installation!\033[0m"
-	cleanFiles mongo-1.6.8
+	cleanFiles mongodb-1.1.5
 }
 
 function installPHPSphinx {
@@ -390,6 +431,23 @@ function installPHPXsplit {
 	/sbin/service php-fpm restart
 	echo -e "\033[31mXsplit extension complete installation!\033[0m"
 	cleanFiles php-xsplit-master
+}
+
+function installPHPYar {
+	if [ ! -s "yar-1.2.5.tgz" ];then
+		wget -c http://pecl.php.net/get/yar-1.2.5.tgz
+	fi
+	tar zxvf yar-1.2.5.tgz
+	cd yar-1.2.5
+	/usr/local/php/bin/phpize
+	./configure -with-php-config=/usr/local/php/bin/php-config
+	make && make install
+	if [ -z "`grep '^extension=yar.so' /usr/local/php/lib/php.ini`" ];then
+		sed -i '/;extension=php_xsl.dll/a\extension=yar.so' /usr/local/php/lib/php.ini
+	fi	
+	/sbin/service php-fpm restart
+	echo -e "\033[31mYar extension complete installation!\033[0m"
+	cleanFiles yar-1.2.5
 }
 
 function installPHPPhalcon {
@@ -489,7 +547,7 @@ function installPHPSSH2 {
 }
 
 function installMysql {
-	yum -y update && yum -y downgrade ncurses* && yum -y install make gcc-c++ cmake bison-devel ncurses-devel
+	yum -y update && yum -y downgrade ncurses* && yum -y install make gcc-c++ cmake bison-devel ncurses-devel bc
 	if [ ! -e "/usr/local/mysql" ];then
 		if [ ! -s "mysql-5.6.20.tar.gz" ];then
 			#http://dev.mysql.com/get/Downloads/MySQL-5.6/mysql-5.6.20.tar.gz
@@ -531,9 +589,9 @@ function installMysql {
 		rm -rf /etc/my.cnf
 		mv /usr/local/mysql/my.cnf /etc/
 		sed -i '1,$d' /etc/my.cnf
-		ibps=`echo "$mem * 0.8"|bc`
+		ibps=`echo "$MemTotal * 0.8"|bc`
 		ibps=${ibps%.*}
-		echo -e "[client]\nport=3306\nsocket=/tmp/mysql.sock\n[mysqld]datadir=${mysqldatadir}\nsocket=/tmp/mysql.sock\nport=3306\nuser=mysql\nsql_mode=\"NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION\"\nlong_query_time=1\nslow_query_log=1\nslow_query_log_file=slow.log\nkey_buffer_size=1024M\nmax_allowed_packet=512M\ntable_open_cache=2048\nsort_buffer_size=64M\nmax_length_for_sort_data=8096\nread_buffer_size=64M\nread_rnd_buffer_size=64M\nmyisam_sort_buffer_size=512M\nthread_cache_size=256\nquery_cache_size=512M\nquery_cache_type=1\nquery_cache_limit=2M\ntmp_table_size=4096M\nthread_concurrency=16\nmyisam-recover=BACKUP,FORCE\nmax_connections=3000\nskip-name-resolve\nback_log=384\nmyisam_max_sort_file_size=10G\nmax_allowed_packet=256M\nwait_timeout=3600\nlog-bin=mysql-bin\nbinlog_format=mixed\nserver-id=811\nexpire_logs_days=0\ninnodb_buffer_pool_size=${ibps}G\ninnodb_flush_log_at_trx_commit=0\n[mysqld_safe]\nlog-error=mysql.log" > /etc/my.cnf
+		echo -e "[client]\nport=3306\nsocket=/tmp/mysql.sock\n[mysqld]datadir=${mysqldatadir}\nsocket=/tmp/mysql.sock\nport=3306\nuser=mysql\nsql_mode=\"NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION\"\nlong_query_time=1\nslow_query_log=1\nslow_query_log_file=slow.log\nkey_buffer_size=1024M\nmax_allowed_packet=512M\ntable_open_cache=2048\nsort_buffer_size=64M\nmax_length_for_sort_data=8096\nread_buffer_size=64M\nread_rnd_buffer_size=64M\nmyisam_sort_buffer_size=512M\nthread_cache_size=256\nquery_cache_size=512M\nquery_cache_type=1\nquery_cache_limit=2M\ntmp_table_size=4096M\nthread_concurrency=16\nmyisam-recover=BACKUP,FORCE\nmax_connections=3000\nskip-name-resolve\nback_log=384\nmyisam_max_sort_file_size=10G\nwait_timeout=3600\nlog-bin=mysql-bin\nbinlog_format=mixed\nserver-id=811\nexpire_logs_days=0\ninnodb_buffer_pool_size=${ibps}G\ninnodb_flush_log_at_trx_commit=0\n[mysqld_safe]\nlog-error=mysql.log" > /etc/my.cnf
 		cp -f support-files/mysql.server /etc/init.d/mysql
 		chkconfig mysql on
 		service mysql start
@@ -542,6 +600,50 @@ function installMysql {
 		cleanFiles mysql-5.6.20
 	else
 		echo -e "\033[31mMysql is already installed!\033[0m"
+	fi
+}
+
+function installMongo {
+	yum -y update && yum -y install gcc-c++
+	if [ ! -e "/usr/local/mongodb" ];then
+		if [ ! -s "mongodb-linux-x86_64-3.0.7.tgz" ];then
+			wget -c https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.0.7.tgz
+		fi
+		groupadd mongodb && /usr/sbin/useradd -g mongodb mongodb
+		tar zxvf mongodb-linux-x86_64-3.0.7.tgz
+		mv mongodb-linux-x86_64-3.0.7 /usr/local/mongodb
+		chown -R mongodb:mongodb /usr/local/mongodb
+		mkdir /data/mongodb && mkdir /data/mongodb/data && mkdir /data/mongodb/logs
+		chown -R mongodb:mongodb /data/mongodb
+		cp /usr/local/mongodb/bin/mongo /usr/bin/ && cp /usr/local/mongodb/bin/mongostat /usr/bin/
+		
+		echo -e "dbpath=/data/mongodb/data\nlogpath=/data/mongodb/logs/log.log\nport=27017\nfork=true\n#auth=true\nnohttpinterface=true\nprofile=1\nmaxConns=30000\noplogSize=100\nstorageEngine=wiredTiger\ndirectoryperdb=true\nwiredTigerDirectoryForIndexes=true" > /data/mongodb/mongodb.conf
+		echo "/usr/local/mongodb/bin/mongod --config /data/mongodb/mongodb.conf &" >> /etc/rc.local
+		/usr/local/mongodb/bin/mongod --config /data/mongodb/mongodb.conf &
+		echo -e "\033[31mMongoDB complete installation!\033[0m"
+	else
+		echo -e "\033[31mMongoDB is already installed!\033[0m"
+	fi
+}
+
+function installRedis {
+	yum -y update && yum -y install gcc-c++
+	if [ ! -s "/usr/local/bin/redis-server" ];then
+		if [ ! -s "redis-3.0.7.tar.gz" ];then
+			wget -c http://download.redis.io/releases/redis-3.0.7.tar.gz
+		fi
+		tar zxvf redis-3.0.7.tar.gz
+		cd redis-3.0.7
+		make && make install
+		cp redis.conf /etc/
+		mkdir /data/logs
+		echo -e "daemonize no\npidfile /var/run/redis.pid\nport 6379\ntcp-backlog 511\ntimeout 0\ntcp-keepalive 0\nloglevel notice\nlogfile \"/data/logs/redis.log\"\ndatabases 16\nstop-writes-on-bgsave-error yes\nrdbcompression yes\nrdbchecksum yes\ndbfilename dump.rdb\ndir /data/\nslave-serve-stale-data yes\nslave-read-only yes\nrepl-diskless-sync no\nrepl-diskless-sync-delay 5\nrepl-disable-tcp-nodelay no\nslave-priority 100\nmaxmemory 8GB\nappendonly no\nappendfilename \"appendonly.aof\"\nappendfsync everysec\nno-appendfsync-on-rewrite no\nauto-aof-rewrite-percentage 100\nauto-aof-rewrite-min-size 64mb\naof-load-truncated yes\nlua-time-limit 5000\nslowlog-log-slower-than 10000\nslowlog-max-len 128\nlatency-monitor-threshold 0\nnotify-keyspace-events \"\"\nhash-max-ziplist-entries 512\nhash-max-ziplist-value 64\nlist-max-ziplist-entries 512\nlist-max-ziplist-value 64\nset-max-intset-entries 512\nzset-max-ziplist-entries 128\nzset-max-ziplist-value 64\nhll-sparse-max-bytes 3000\nactiverehashing yes\nclient-output-buffer-limit normal 0 0 0\nclient-output-buffer-limit slave 256mb 64mb 60\nclient-output-buffer-limit pubsub 32mb 8mb 60\nhz 10\naof-rewrite-incremental-fsync yes" > /etc/redis.conf
+		echo "/usr/local/bin/redis-server /etc/redis.conf &" >> /etc/rc.local
+		/usr/local/bin/redis-server /etc/redis.conf &
+		echo -e "\033[31mREDIS complete installation!\033[0m"
+		cleanFiles redis-3.0.7
+	else
+		echo -e "\033[31mREDIS is already installed!\033[0m"
 	fi
 }
 
@@ -586,8 +688,10 @@ do
 	echo -e "(2) Configure \033[1mNGINX\033[0m Service"
 	echo -e "(3) Configure \033[1mPHP\033[0m Service"
 	echo -e "(4) Configure \033[1mMYSQL\033[0m Service"
+	echo -e "(5) Configure \033[1mMONGODB\033[0m Service"
+	echo -e "(6) Configure \033[1mREDIS\033[0m Service"
 	echo -e "(0) Quit"
-	read -p "Please enter your choice[0-4]: " input
+	read -p "Please enter your choice[0-6]: " input
 	case $input in
 	1)
 		clear
@@ -660,52 +764,62 @@ do
 		do
 			system
 			echo -e "\033[41;33m|-----------Configure PHP Service-----------\033[0m"
-			echo -e "(1) Install the Old Stable \033[1mPHP 5.5.24\033[0m"
-			echo -e "(2) Upgrade to Old Stable \033[1mPHP 5.5.24\033[0m"
-			echo -e "(3) Install the latest \033[1mredis\033[0m extension of PHP"
-			echo -e "(4) Install the latest \033[1mmongoDB\033[0m extension of PHP"
-			echo -e "(5) Install the latest \033[1msphinx\033[0m extension of PHP"
-			echo -e "(6) Install the latest \033[1mxsplit\033[0m extension of PHP"
-			echo -e "(7) Install the latest \033[1mphalcon\033[0m extension of PHP"
-			echo -e "(8) Install the latest \033[1mgmagick\033[0m extension of PHP"
-			echo -e "(9) Install the latest \033[1mssh2\033[0m extension of PHP"			
+			echo -e "(1) Install the Old Stable \033[1mPHP 7.0.3\033[0m"
+			echo -e "(2) Install the Old Stable \033[1mPHP 5.5.24\033[0m"
+			echo -e "(3) Install the Old Stable \033[1mPHP 5.3.28\033[0m"
+			echo -e "(4) Install the latest \033[1mredis\033[0m extension of PHP"
+			echo -e "(5) Install the latest \033[1mmongoDB\033[0m extension of PHP"
+			echo -e "(6) Install the latest \033[1msphinx\033[0m extension of PHP"
+			echo -e "(7) Install the latest \033[1mxsplit\033[0m extension of PHP"
+			echo -e "(8) Install the latest \033[1mphalcon\033[0m extension of PHP"
+			echo -e "(9) Install the latest \033[1mgmagick\033[0m extension of PHP"
+			echo -e "(10) Install the latest \033[1mssh2\033[0m extension of PHP"
+			echo -e "(11) Install the latest \033[1mYar\033[0m extension of PHP"
 			echo -e "(0) Back"
 			read -p "Please enter your choice[0-9]: " input3
 			case $input3 in
 			1)
-				installPHP
+				installPHP7
 				toContinue
 				;;
 			2)
-				updatePHP
+				installPHP55
 				toContinue
 				;;
 			3)
-				installPHPRedis
+				installPHP53
 				toContinue
 				;;
 			4)
-				installPHPMongo
+				installPHPRedis
 				toContinue
 				;;
 			5)
-				installPHPSphinx
+				installPHPMongo
 				toContinue
 				;;
 			6)
-				installPHPXsplit
+				installPHPSphinx
 				toContinue
 				;;
 			7)
-				installPHPPhalcon
+				installPHPXsplit
 				toContinue
 				;;
 			8)
-				installPHPGmagick
+				installPHPPhalcon
 				toContinue
 				;;
 			9)
+				installPHPGmagick
+				toContinue
+				;;
+			10)
 				installPHPSSH2
+				toContinue
+				;;
+			11)
+				installPHPYar
 				toContinue
 				;;
 			0) 
@@ -744,6 +858,56 @@ do
 			esac			
 		done
 		;;
+	5)
+		clear
+		while true
+		do
+			system
+			echo -e "\033[41;33m|-----------Configure MONGODB Service-----------\033[0m"
+			echo -e "(1) Install the latest version MONGODB"
+			echo -e "(0) Back"
+			read -p "Please enter your choice[0-1]: " input5
+			case $input5 in
+			1)
+				installMongo
+				toContinue
+				;;
+			0) 
+				clear 
+				break
+				;;
+			*)
+				echo -e "\033[31mPlease Enter Right Choice!\033[0m"
+				toContinue
+				;;
+			esac			
+		done
+		;;
+	6)
+		clear
+		while true
+		do
+			system
+			echo -e "\033[41;33m|-----------Configure REDIS Service-----------\033[0m"
+			echo -e "(1) Install the latest version REDIS"
+			echo -e "(0) Back"
+			read -p "Please enter your choice[0-1]: " input6
+			case $input6 in
+			1)
+				installRedis
+				toContinue
+				;;
+			0) 
+				clear 
+				break
+				;;
+			*)
+				echo -e "\033[31mPlease Enter Right Choice!\033[0m"
+				toContinue
+				;;
+			esac			
+		done
+		;;
 	0) 
 		clear 
 		break
@@ -756,11 +920,13 @@ do
 done
 }
 #start Judge script parameters
+#./linux.sh "system process"
 if [ "$1" != "" ];then
     arr=($1)
 	for i in ${arr[@]}
 	do
-		$i >> install.log
+		#$i >> install.log
+		$i
 	done
 else
     clear
