@@ -148,11 +148,11 @@ function installNginx {
 	if [ ! -e "/usr/local/nginx" ];then
 		yum -y update && yum -y install gcc-c++ zlib-devel openssl--devel pcre-devel
 		groupadd www && /usr/sbin/useradd -g www www		
-		if [ ! -s "nginx-1.9.9.tar.gz" ];then
-			wget -c http://nginx.org/download/nginx-1.9.9.tar.gz
+		if [ ! -s "nginx-1.10.3.tar.gz" ];then
+			wget -c http://nginx.org/download/nginx-1.10.3.tar.gz			
 		fi
-		tar zxvf nginx-1.9.9.tar.gz 
-		cd nginx-1.9.9
+		tar zxvf nginx-1.10.3.tar.gz 
+		cd nginx-1.10.3
 		./configure
 		make && make install
 		if [ $CPU_PROCESSOR -ge 8 ];then
@@ -171,25 +171,25 @@ function installNginx {
 		mkdir -p /usr/local/nginx/conf/vhost		
 		/usr/local/nginx/sbin/nginx &
 		echo -e "\033[31mNginx complete installation!\033[0m"
-		cleanFiles nginx-1.9.9
+		cleanFiles nginx-1.10.3
 	else
 		echo -e "\033[31mNginx is already installed!\033[0m"
 	fi
 }
 
 function updateNginx {
-	if [ ! -s "nginx-1.9.9.tar.gz" ];then
-		wget -c http://nginx.org/download/nginx-1.9.9.tar.gz
+	if [ ! -s "nginx-1.10.3.tar.gz" ];then
+		wget -c http://nginx.org/download/nginx-1.10.3.tar.gz
 	fi
-	tar zxvf nginx-1.9.9.tar.gz
-	cd nginx-1.9.9
+	tar zxvf nginx-1.10.3.tar.gz
+	cd nginx-1.10.3
 	./configure
 	make
 	mv /usr/local/nginx/sbin/nginx /usr/local/nginx/sbin/nginx.old
 	cp -f objs/nginx /usr/local/nginx/sbin/ 
 	/usr/local/nginx/sbin/nginx -s reload
 	echo -e "\033[31mNginx complete upgrade!\033[0m"
-	cleanFiles nginx-1.9.9
+	cleanFiles nginx-1.10.3
 }
 
 function configVhost {
@@ -239,11 +239,11 @@ function configVhost {
 function installPHP7 {	
 	if [ ! -e "/usr/local/php/bin/php" ];then		
 		yum -y install gcc gcc-c++ libxml2-devel.x86_64 autoconf libjpeg-devel freetype-devel.x86_64 zlib-devel.x86_64 glibc-devel.x86_64 glib2-devel.x86_64 libpng-devel.x86_64 libcurl-devel.x86_64
-		if [ ! -s "php-7.0.3.tar.gz" ];then
-			wget -c http://cn2.php.net/distributions/php-7.0.3.tar.gz
+		if [ ! -s "php-7.1.3.tar.gz" ];then
+			wget -c http://cn2.php.net/distributions/php-7.1.3.tar.gz
 		fi
-		tar zxvf php-7.0.3.tar.gz
-		cd php-7.0.3
+		tar zxvf php-7.1.3.tar.gz
+		cd php-7.1.3
 		./configure --prefix=/usr/local/php --with-curl --enable-mbstring --with-mysqli --enable-opcache --with-pdo-mysql=mysqlnd --with-iconv --with-gd --enable-fpm --enable-mysqlnd --with-jpeg-dir --with-png-dir --enable-zip --with-freetype-dir --with-gettext --enable-gd-native-ttf --without-pdo-sqlite --without-sqlite3 --enable-pcntl
 		make && make install
 		cp -f php.ini-production /usr/local/php/lib/php.ini
@@ -267,7 +267,7 @@ function installPHP7 {
 		chkconfig php-fpm on
 		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
 		echo -e "\033[31mPHP${php_version} complete installation!\033[0m"
-		cleanFiles php-7.0.3
+		cleanFiles php-7.1.3
 	else
 		php_version=`/usr/local/php/bin/php -v |awk 'NR==1 {print $2}'`
 		echo -e "\033[31mPHP${php_version} is already installed!\033[0m"
@@ -351,12 +351,11 @@ function installPHP53 {
 }
 
 function installPHPRedis {
-	if [ ! -s "redis-2.2.7.tgz" ];then
-		#http://pecl.php.net/get/redis-2.2.7.tgz
-		wget -c ${DOWNURL}redis-2.2.7.tgz
+	if [ ! -s "redis-3.1.1.tgz" ];then
+		wget -c http://pecl.php.net/get/redis-3.1.1.tgz
 	fi
-	tar zxvf redis-2.2.7.tgz
-	cd redis-2.2.7  
+	tar zxvf redis-3.1.1.tgz
+	cd redis-3.1.1  
 	/usr/local/php/bin/phpize
 	./configure -with-php-config=/usr/local/php/bin/php-config
 	make && make install
@@ -365,16 +364,16 @@ function installPHPRedis {
 	fi	
 	/sbin/service php-fpm restart
 	echo -e "\033[31mRedis extension complete installation!\033[0m"
-	cleanFiles redis-2.2.7
+	cleanFiles redis-3.1.1
 }
 
 function installPHPMongo {
 	yum install -y openssl openssl-devel
-	if [ ! -s "mongodb-1.1.5.tgz" ];then
-		wget -c http://pecl.php.net/get/mongodb-1.1.5.tgz
+	if [ ! -s "mongodb-1.2.8.tgz" ];then
+		wget -c http://pecl.php.net/get/mongodb-1.2.8.tgz
 	fi
-	tar zxvf mongodb-1.1.5.tgz
-	cd mongodb-1.1.5
+	tar zxvf mongodb-1.2.8.tgz
+	cd mongodb-1.2.8
 	/usr/local/php/bin/phpize
 	./configure -with-php-config=/usr/local/php/bin/php-config
 	make && make install
@@ -383,7 +382,7 @@ function installPHPMongo {
 	fi	
 	/sbin/service php-fpm restart
 	echo -e "\033[31mMongo extension complete installation!\033[0m"
-	cleanFiles mongodb-1.1.5
+	cleanFiles mongodb-1.2.8
 }
 
 function installPHPSphinx {
@@ -606,12 +605,12 @@ function installMysql {
 function installMongo {
 	yum -y update && yum -y install gcc-c++
 	if [ ! -e "/usr/local/mongodb" ];then
-		if [ ! -s "mongodb-linux-x86_64-3.0.7.tgz" ];then
-			wget -c https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.0.7.tgz
+		if [ ! -s "mongodb-linux-x86_64-3.4.2.tgz" ];then
+			wget -c https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.4.2.tgz
 		fi
 		groupadd mongodb && /usr/sbin/useradd -g mongodb mongodb
-		tar zxvf mongodb-linux-x86_64-3.0.7.tgz
-		mv mongodb-linux-x86_64-3.0.7 /usr/local/mongodb
+		tar zxvf mongodb-linux-x86_64-3.4.2.tgz
+		mv mongodb-linux-x86_64-3.4.2 /usr/local/mongodb
 		chown -R mongodb:mongodb /usr/local/mongodb
 		mkdir /data/mongodb && mkdir /data/mongodb/data && mkdir /data/mongodb/logs
 		chown -R mongodb:mongodb /data/mongodb
@@ -764,7 +763,7 @@ do
 		do
 			system
 			echo -e "\033[41;33m|-----------Configure PHP Service-----------\033[0m"
-			echo -e "(1) Install the Old Stable \033[1mPHP 7.0.3\033[0m"
+			echo -e "(1) Install the Old Stable \033[1mPHP 7.1.3\033[0m"
 			echo -e "(2) Install the Old Stable \033[1mPHP 5.5.24\033[0m"
 			echo -e "(3) Install the Old Stable \033[1mPHP 5.3.28\033[0m"
 			echo -e "(4) Install the latest \033[1mredis\033[0m extension of PHP"
