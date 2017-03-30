@@ -546,7 +546,7 @@ function installPHPSSH2 {
 }
 
 function installMysql {
-	yum -y update && yum -y downgrade ncurses* && yum -y install make gcc-c++ cmake bison-devel ncurses-devel bc
+	yum -y update && yum -y downgrade ncurses* && yum -y install make gcc-c++ cmake bison-devel ncurses-devel bc perl-Module-Install.noarch
 	if [ ! -e "/usr/local/mysql" ];then
 		if [ ! -s "mysql-5.6.20.tar.gz" ];then
 			#http://dev.mysql.com/get/Downloads/MySQL-5.6/mysql-5.6.20.tar.gz
