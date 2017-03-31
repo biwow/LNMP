@@ -146,7 +146,7 @@ function configUlimit {
 function installNginx {
 	echo -e "============================Install Nginx================================="
 	if [ ! -e "/usr/local/nginx" ];then
-		yum -y update && yum -y install gcc-c++ zlib-devel openssl--devel pcre-devel
+		yum -y update && yum -y install gcc-c++ zlib-devel openssl--devel pcre-devel automake autoconf libtool make
 		groupadd www && /usr/sbin/useradd -g www www		
 		if [ ! -s "nginx-1.10.3.tar.gz" ];then
 			wget -c http://nginx.org/download/nginx-1.10.3.tar.gz			
